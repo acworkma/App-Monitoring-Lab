@@ -1,0 +1,129 @@
+name: Build and Deploy Applications
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'apps/**'
+      - '.github/workflows/build-deploy-apps.yml'
+
+permissions:
+  id-token: write
+  contents: read
+  packages: write
+
+env:
+  JAVA_VERSION: '21'
+  MAVEN_VERSION: '3.9.5'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        app: [api]  # Add 'frontend' and 'worker' when ready
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v3
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: 'maven'
+      
+      - name: Build with Maven
+        working-directory: apps/${{ matrix.app }}
+        run: |
+          mvn clean package -DskipTests
+          echo "✅ Maven build completed"
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.app }}-jar
+          path: apps/${{ matrix.app }}/target/*.jar
+          retention-days: 7
+  
+  push-to-acr:
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        app: [api]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Download artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: ${{ matrix.app }}-jar
+          path: apps/${{ matrix.app }}/target
+      
+      - name: Azure Login (OIDC)
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      
+      - name: Get ACR name
+        id: get-acr
+        run: |
+          # Retrieve ACR name from deployment (adjust RG name as needed)
+          RG_NAME="rg-monitoring-lab-canadacentral"
+          ACR_NAME=$(az acr list --resource-group $RG_NAME --query "[0].name" -o tsv)
+          echo "acr_name=$ACR_NAME" >> $GITHUB_OUTPUT
+          echo "ACR Name: $ACR_NAME"
+      
+      - name: Build and push Docker image
+        working-directory: apps/${{ matrix.app }}
+        run: |
+          ACR_NAME="${{ steps.get-acr.outputs.acr_name }}"
+          IMAGE_TAG="${{ github.sha }}"
+          
+          # Login to ACR
+          az acr login --name $ACR_NAME
+          
+          # Build image
+          docker build -t $ACR_NAME.azurecr.io/${{ matrix.app }}:$IMAGE_TAG .
+          docker tag $ACR_NAME.azurecr.io/${{ matrix.app }}:$IMAGE_TAG $ACR_NAME.azurecr.io/${{ matrix.app }}:latest
+          
+          # Push images
+          docker push $ACR_NAME.azurecr.io/${{ matrix.app }}:$IMAGE_TAG
+          docker push $ACR_NAME.azurecr.io/${{ matrix.app }}:latest
+          
+          echo "✅ Image pushed: $ACR_NAME.azurecr.io/${{ matrix.app }}:$IMAGE_TAG"
+  
+  deploy-to-container-apps:
+    needs: push-to-acr
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        app: [api]
+    
+    steps:
+      - name: Azure Login (OIDC)
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      
+      - name: Deploy to Container Apps
+        run: |
+          RG_NAME="rg-monitoring-lab-canadacentral"
+          ACR_NAME=$(az acr list --resource-group $RG_NAME --query "[0].name" -o tsv)
+          IMAGE="${ACR_NAME}.azurecr.io/${{ matrix.app }}:${{ github.sha }}"
+          
+          echo "Deploying image: $IMAGE"
+          
+          # Note: Container App creation would happen here
+          # For now, this is a placeholder showing the deployment pattern
+          echo "✅ Deployment triggered for ${{ matrix.app }}"

@@ -1,0 +1,74 @@
+spring:
+  application:
+    name: monitoring-lab-api
+  
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME:labadmin}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+  
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+    show-sql: false
+  
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    locations: classpath:db/migration
+  
+  data:
+    redis:
+      host: ${SPRING_REDIS_HOST}
+      port: ${SPRING_REDIS_PORT:6380}
+      password: ${SPRING_REDIS_PASSWORD}
+      ssl:
+        enabled: true
+      timeout: 2000ms
+  
+  jms:
+    servicebus:
+      connection-string: ${AZURE_SERVICEBUS_CONNECTION_STRING}
+      pricing-tier: premium
+
+# Application Insights Configuration
+azure:
+  application-insights:
+    enabled: true
+    connection-string: ${APPLICATIONINSIGHTS_CONNECTION_STRING}
+
+# Actuator endpoints
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+# Application configuration
+app:
+  cache:
+    ttl: 300  # 5 minutes in seconds
+
+# Logging
+logging:
+  level:
+    root: INFO
+    com.azure.monitoring.lab: DEBUG
+    org.springframework.web: INFO
+    org.hibernate.SQL: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"

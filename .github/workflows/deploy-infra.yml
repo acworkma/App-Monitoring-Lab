@@ -1,0 +1,72 @@
+name: Deploy Infrastructure
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'infra/**'
+      - '.github/workflows/deploy-infra.yml'
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AZURE_LOCATION: canadacentral
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Azure Login (OIDC)
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      
+      - name: Deploy Bicep template
+        id: deploy
+        run: |
+          DEPLOYMENT_NAME="monitoring-lab-$(date +%Y%m%d-%H%M%S)"
+          
+          echo "Starting deployment: $DEPLOYMENT_NAME"
+          
+          az deployment sub create \
+            --name "$DEPLOYMENT_NAME" \
+            --location ${{ env.AZURE_LOCATION }} \
+            --template-file infra/bicep/main.bicep \
+            --parameters infra/bicep/parameters/canadacentral.bicepparam \
+            --output json > deployment-output.json
+          
+          # Extract outputs
+          RG_NAME=$(jq -r '.properties.outputs.resourceGroupName.value' deployment-output.json)
+          KV_NAME=$(jq -r '.properties.outputs.keyVaultName.value' deployment-output.json)
+          ACR_NAME=$(jq -r '.properties.outputs.acrName.value' deployment-output.json)
+          
+          echo "rg_name=$RG_NAME" >> $GITHUB_OUTPUT
+          echo "kv_name=$KV_NAME" >> $GITHUB_OUTPUT
+          echo "acr_name=$ACR_NAME" >> $GITHUB_OUTPUT
+          
+          echo "✅ Deployment completed successfully"
+          echo "Resource Group: $RG_NAME"
+          echo "Key Vault: $KV_NAME"
+          echo "Container Registry: $ACR_NAME"
+      
+      - name: Upload deployment outputs
+        uses: actions/upload-artifact@v3
+        with:
+          name: deployment-outputs
+          path: deployment-output.json
+          retention-days: 30
+    
+    outputs:
+      resource_group: ${{ steps.deploy.outputs.rg_name }}
+      key_vault: ${{ steps.deploy.outputs.kv_name }}
+      acr_name: ${{ steps.deploy.outputs.acr_name }}
