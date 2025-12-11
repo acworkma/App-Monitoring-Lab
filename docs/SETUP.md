@@ -16,7 +16,7 @@ The lab includes a Point-to-Site (P2S) VPN Gateway with Azure AD authentication 
 ### Prerequisites
 
 - Azure VPN Client (Windows, macOS, or Linux)
-  - **Windows/macOS**: [Download Azure VPN Client](https://go.microsoft.com/fwlink/?linkid=2117554)
+  - **Windows/macOS**: [Download Azure VPN Client](https://aka.ms/azvpnclientdownload)
   - **Linux**: Use OpenVPN with Azure AD authentication
 
 ### Configuration Steps
