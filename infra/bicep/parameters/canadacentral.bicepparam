@@ -1,4 +1,4 @@
-using './main.bicep'
+using '../main.bicep'
 
 // Location parameter
 param location = 'canadacentral'
@@ -92,7 +92,7 @@ param redisConfig = {
 
 // Storage Configuration
 param storageConfig = {
-  name: 'dlstore${uniqueString(resourceGroup().id)}'
+  name: 'dlstoremonlab01'
   skuName: 'Standard_LRS'
   kind: 'StorageV2'
   isHnsEnabled: true
@@ -108,14 +108,14 @@ param serviceBusConfig = {
 
 // Key Vault Configuration
 param keyVaultConfig = {
-  name: 'kv-${prefix}-${uniqueString(resourceGroup().id)}'
+  name: 'kv-monlab-cc01'
   skuName: 'premium'
   enableRbacAuthorization: true
 }
 
 // Container Registry Configuration
 param acrConfig = {
-  name: 'acr${prefix}${uniqueString(resourceGroup().id)}'
+  name: 'acrmonlabcc01'
   skuName: 'Premium'
   adminUserEnabled: true
 }
